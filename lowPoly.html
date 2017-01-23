@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Low Polify</title>
+</head>
+<body>
+	<h1>Low Polify your images</h1>
+	<form>
+		<input type="file" id="img_file">
+	</form>
+	<img id="original">
+	<canvas id="lowpoly"></canvas>
+	<script type="text/javascript">
+		var draw = {
+			outline_circle : function(x, y){
+				draw.ctx.beginPath();
+				draw.ctx.arc(x,y,5,0,2*Math.PI);
+				draw.ctx.stroke();
+			},
+			rgbToHex : function(r, g, b) {
+			    if (r > 255 || g > 255 || b > 255)
+			        throw "Invalid color component";
+			    return ((r << 16) | (g << 8) | b).toString(16);
+			},
+			findClosestPoint : function(x,y, points_list){
+				points_list = points_list || poly.points
+				var lastDistance, currentDistance;
+				var closest = 0;
+				lastDistance = poly.distance(x,y, points_list[0][0], points_list[0][1]);
+				for(var i = 0; i < points_list.length; i++){
+					currentDistance = poly.distance(x, y, points_list[i][0], points_list[i][1]);
+					if(currentDistance < lastDistance){
+						lastDistance = currentDistance;
+						closest = i;
+					}
+				}
+				return [closest, lastDistance];
+			},
+			color_regions : function(){
+				for(var i = 0; i < modifier.lowpoly.width; i++){
+					for (var j = 0; j < modifier.lowpoly.height; j++) {
+						color = draw.findClosestPoint(i, j)[0];
+						draw.ctx.fillStyle = poly.point_colors[color];
+						draw.ctx.fillRect(i,j,1,1);
+					}
+				}
+			}
+		}
+		var poly = {
+			random_points : function(amount, scaleX = 1, scaleY = 1){
+				var points = []
+				for(; amount > 0; amount--){
+					points.push([Math.random() * scaleX, Math.random() * scaleY])
+				}
+				return points;
+			},
+
+			mitchells_points : function(amount, scaleX = 1, scaleY = 1){
+				points = []
+				points.push(poly.random_points(1, scaleX, scaleY)[0])
+				for(;amount > 1; amount--){
+					var candidates = poly.random_points(10, scaleX, scaleY)
+					var best = [0, Infinity]
+					var candidate
+					for(var i = 0; i < candidates.length; i++){
+						//best
+						candidate = draw.findClosestPoint(candidates[i][0], candidates[i][1], points)
+						if(best[1] < candidate[1]){
+							best[1] = candidate[1]
+							best[0] = i
+						}
+					}
+					points.push(candidates[best[0]])
+				}
+				return points
+			},
+			distance : function(x1, y1, x2, y2){
+				return Math.sqrt( (x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2) );
+			}
+		}
+		var modifier = {
+			reader : new FileReader(),
+			file : document.querySelector("#img_file"),
+			original : document.querySelector("#original"),
+			lowpoly : document.querySelector("#lowpoly"),
+			display : function(img){
+				modifier.reader.readAsDataURL(modifier.file.files[0])
+			},
+			addListeners : function(){
+				modifier.file.addEventListener("change", modifier.display)
+				modifier.reader.addEventListener("load", function(){
+					modifier.original.width = 500
+					modifier.original.src = modifier.reader.result
+					//console.log(modifier.original.width, modifier.original.height)
+					modifier.lowpoly.width = modifier.original.width
+					modifier.lowpoly.height = modifier.original.height
+					modifier.convert()
+				})
+			},
+			convert : function(){
+				draw.ctx = modifier.lowpoly.getContext("2d")
+				poly.points = poly.mitchells_points(500, modifier.lowpoly.width, modifier.lowpoly.height)
+				var i = 0
+				draw.ctx.drawImage(modifier.original, 0, 0, modifier.original.width, modifier.original.height)
+				poly.point_colors = []
+				for(i = 0; i < poly.points.length; i++){
+					x = poly.points[i][0]
+					y = poly.points[i][1]
+					color = draw.ctx.getImageData(x, y, 1, 1).data
+					poly.point_colors.push("#" + ("000000" + draw.rgbToHex(color[0], color[1], color[2])).slice(-6))
+				}
+				draw.color_regions()
+				//for(i = 0; i < poly.points.length; i++){
+				//	x = poly.points[i][0]
+				//	y = poly.points[i][1]
+				//	draw.outline_circle(x,y)
+				//}
+			}
+		}
+
+		modifier.addListeners()
+	</script>
+</body>
+</html>
